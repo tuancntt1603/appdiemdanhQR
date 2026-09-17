@@ -145,13 +145,14 @@ diem-danh-qr/
 
 ---
 
-## 5. TÀI KHOẢN & DỮ LIỆU DEMO
+## 5. TÀI KHOẢN & DỮ LIỆU DEMO (PHÂN QUYỀN 3 VAI TRÒ)
 
 | Vai trò | Email / Tài khoản | Mật khẩu | Chức năng |
 | :--- | :--- | :--- | :--- |
-| **Quản trị / Cán bộ** | `admin@example.com` | `password` | Toàn quyền quản lý, điểm danh, xuất báo cáo |
-| **Cán bộ coi xưởng** | `canbo@example.com` | `password` | Trực tiếp mở webcam điểm danh tại xưởng |
-| **Sinh viên mẫu** | `SV001` đến `SV010` | *(Mã SV)* | Lấy mã QR cá nhân 90s tại trang `/student-qr` |
+| **Quản trị viên (Admin)** | `admin@example.com` | `password` | Toàn quyền quản trị hệ thống, quản lý buổi thực hành, xưởng, sinh viên, báo cáo |
+| **Giảng viên / Cán bộ xưởng** | `canbo@example.com` | `password` | Quản lý buổi thực hành, mở webcam quét QR điểm danh tại cửa xưởng, xem thống kê |
+| **Sinh viên** | `sv001@example.com` (hoặc `SV001`) | `password` | Xem mã QR cá nhân 90 giây của chính mình, xem lịch sử điểm danh cá nhân |
+| **Sinh viên mẫu khác** | `SV001` đến `SV010` | *(Mã SV)* | Lấy mã QR cá nhân 90s tại trang `/student-qr` |
 
 ---
 

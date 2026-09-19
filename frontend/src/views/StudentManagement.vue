@@ -66,6 +66,9 @@
                 </button>
               </td>
               <td class="text-right">
+                <router-link :to="`/students/${st.id}`" class="btn-action view" title="Xem chi tiết hồ sơ">
+                  👁️
+                </router-link>
                 <button @click="openModal(st)" class="btn-action edit" title="Sửa">
                   ✏️
                 </button>

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\PracticeSessionController;
 use App\Http\Controllers\Api\QrCodeController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\StudentController;
@@ -32,6 +33,14 @@ Route::post('/attendance/check-out', [AttendanceController::class, 'checkOut']);
 Route::get('/attendance', [AttendanceController::class, 'index']);
 Route::get('/attendance/student/{id}', [AttendanceController::class, 'getStudentAttendance']);
 
+// Buổi thực hành & Lịch điểm danh
+Route::get('/practice-sessions/active', [PracticeSessionController::class, 'activeSessions']);
+Route::get('/practice-sessions', [PracticeSessionController::class, 'index']);
+Route::post('/practice-sessions', [PracticeSessionController::class, 'store']);
+Route::get('/practice-sessions/{id}', [PracticeSessionController::class, 'show']);
+Route::put('/practice-sessions/{id}', [PracticeSessionController::class, 'update']);
+Route::delete('/practice-sessions/{id}', [PracticeSessionController::class, 'destroy']);
+
 // Sinh viên (Public hoặc Auth)
 Route::get('/students', [StudentController::class, 'index']);
 Route::post('/students', [StudentController::class, 'store']);
@@ -54,8 +63,24 @@ Route::get('/workshops/{id}', [WorkshopController::class, 'show']);
 Route::put('/workshops/{id}', [WorkshopController::class, 'update']);
 Route::delete('/workshops/{id}', [WorkshopController::class, 'destroy']);
 
-// Routes cần xác thực bằng Bearer token (nếu cần bảo mật nâng cao)
+// Protected routes với Sanctum Token
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Quyền Giảng viên & Admin: Quản lý buổi thực hành
+    Route::middleware('role:admin,can_bo')->group(function () {
+        Route::post('/practice-sessions', [PracticeSessionController::class, 'store']);
+        Route::put('/practice-sessions/{id}', [PracticeSessionController::class, 'update']);
+        Route::delete('/practice-sessions/{id}', [PracticeSessionController::class, 'destroy']);
+
+        // Quản lý sinh viên & xưởng
+        Route::post('/students', [StudentController::class, 'store']);
+        Route::put('/students/{id}', [StudentController::class, 'update']);
+        Route::delete('/students/{id}', [StudentController::class, 'destroy']);
+
+        Route::post('/workshops', [WorkshopController::class, 'store']);
+        Route::put('/workshops/{id}', [WorkshopController::class, 'update']);
+        Route::delete('/workshops/{id}', [WorkshopController::class, 'destroy']);
+    });
 });

@@ -6,14 +6,30 @@
         <div class="scanner-header">
           <div class="title-with-status">
             <h2>📷 ĐIỂM DANH XƯỞNG THỰC HÀNH</h2>
-            <div class="workshop-selector">
-              <label>Xưởng:</label>
-              <select v-model="selectedWorkshop" class="form-control-sm">
-                <option v-for="ws in workshops" :key="ws.id" :value="ws.id">
-                  {{ ws.ten_xuong }} ({{ ws.dia_diem || 'Phòng thực hành' }})
-                </option>
-              </select>
+            <div class="selectors-row">
+              <div class="selector-item">
+                <label>📅 Buổi thực hành:</label>
+                <select v-model="selectedSessionId" @change="onSessionChange" class="form-control-sm">
+                  <option value="">-- Điểm danh xưởng chung (không gắn buổi) --</option>
+                  <option v-for="sess in activeSessions" :key="sess.id" :value="sess.id">
+                    {{ sess.ten_buoi }} (Lớp: {{ sess.lop }})
+                  </option>
+                </select>
+              </div>
+
+              <div class="selector-item">
+                <label>🏢 Xưởng:</label>
+                <select v-model="selectedWorkshop" class="form-control-sm">
+                  <option v-for="ws in workshops" :key="ws.id" :value="ws.id">
+                    {{ ws.ten_xuong }} ({{ ws.dia_diem || 'Phòng thực hành' }})
+                  </option>
+                </select>
+              </div>
             </div>
+          </div>
+          <div v-if="currentSessionInfo" class="active-session-banner">
+            <span class="badge badge-success">Đang gắn buổi học</span>
+            <span><b>{{ currentSessionInfo.ten_buoi }}</b> | Lớp: <b>{{ currentSessionInfo.lop }}</b> | Giờ: <b>{{ currentSessionInfo.gio_bat_dau }} - {{ currentSessionInfo.gio_ket_thuc }}</b></span>
           </div>
           <p class="scanner-instruction">Đưa mã QR cá nhân trên điện thoại của sinh viên vào khung camera bên dưới</p>
         </div>
@@ -125,16 +141,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { Html5Qrcode } from 'html5-qrcode'
 import api from '../services/api'
 
+const route = useRoute()
 const isScanning = ref(false)
 const statusMessage = ref('Đang chờ quét mã QR...')
 const statusClass = ref('status-idle')
 const cameraError = ref('')
 const selectedWorkshop = ref(1)
+const selectedSessionId = ref('')
 const workshops = ref([])
+const activeSessions = ref([])
 const manualQrText = ref('')
 const lastScanResult = ref(null)
 const resultCardClass = ref('')
@@ -145,22 +165,46 @@ let html5QrCode = null
 let lastScannedToken = ''
 let lastScanTimestamp = 0
 
+const currentSessionInfo = computed(() => {
+  return activeSessions.value.find(s => s.id === Number(selectedSessionId.value)) || null
+})
+
 // Khởi tạo và fetch danh sách
 const initData = async () => {
   try {
-    const [wsRes, stRes] = await Promise.all([
+    const [wsRes, stRes, sessRes] = await Promise.all([
       api.get('/workshops'),
-      api.get('/students')
+      api.get('/students'),
+      api.get('/practice-sessions/active')
     ])
     if (wsRes.data.success && wsRes.data.data.length > 0) {
       workshops.value = wsRes.data.data
       selectedWorkshop.value = wsRes.data.data[0].id
     }
     if (stRes.data.success) {
-      demoStudents.value = stRes.data.data.slice(0, 6)
+      demoStudents.value = stRes.data.data
+    }
+    if (sessRes.data.success) {
+      activeSessions.value = sessRes.data.data
+      // Nếu có query param session_id từ URL
+      if (route.query.session_id) {
+        selectedSessionId.value = Number(route.query.session_id)
+        onSessionChange()
+      } else if (activeSessions.value.length > 0) {
+        // Tự động chọn buổi đầu tiên hôm nay nếu có
+        selectedSessionId.value = activeSessions.value[0].id
+        onSessionChange()
+      }
     }
   } catch (err) {
-    console.error('Lỗi tải danh mục xưởng/sinh viên:', err)
+    console.error('Lỗi tải danh mục xưởng/sinh viên/buổi học:', err)
+  }
+}
+
+const onSessionChange = () => {
+  const sess = currentSessionInfo.value
+  if (sess && sess.workshop_id) {
+    selectedWorkshop.value = sess.workshop_id
   }
 }
 
@@ -237,10 +281,15 @@ const processScan = async (qrDataText) => {
   statusClass.value = 'status-processing'
 
   try {
-    const res = await api.post('/attendance/scan', {
+    const payload = {
       qr_data: qrDataText,
-      workshop_id: selectedWorkshop.value
-    })
+      workshop_id: selectedWorkshop.value,
+    }
+    if (selectedSessionId.value) {
+      payload.practice_session_id = selectedSessionId.value
+    }
+
+    const res = await api.post('/attendance/scan', payload)
 
     if (res.data.success) {
       const resultData = res.data.data
@@ -372,13 +421,41 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .title-with-status h2 {
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--gray-900);
+}
+
+.selectors-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.selector-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.active-session-banner {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
 }
 
 .workshop-selector {

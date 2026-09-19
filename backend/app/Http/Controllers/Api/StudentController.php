@@ -71,7 +71,7 @@ class StudentController extends Controller
     public function show($id)
     {
         $student = Student::with(['attendances' => function ($q) {
-            $q->orderBy('check_in', 'desc');
+            $q->with(['workshop', 'practiceSession'])->orderBy('check_in', 'desc');
         }])->find($id);
 
         if (! $student) {

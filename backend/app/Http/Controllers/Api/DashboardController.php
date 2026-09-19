@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\PracticeSession;
 use App\Models\Student;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -36,7 +37,14 @@ class DashboardController extends Controller
         // Số lượt ra (bản ghi có check_out hôm nay)
         $checkOutCount = $todayAttendances->whereNotNull('check_out')->count();
 
-        // 3. Biểu đồ 7 ngày gần nhất (Điểm danh theo ngày)
+        // 3. Buổi thực hành hôm nay
+        $todaySessions = PracticeSession::with(['workshop', 'lecturer'])
+            ->withCount('attendances')
+            ->whereDate('ngay_hoc', $today)
+            ->orderBy('gio_bat_dau', 'asc')
+            ->get();
+
+        // 4. Biểu đồ 7 ngày gần nhất (Điểm danh theo ngày)
         $chartDays = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::today()->subDays($i);
@@ -51,7 +59,7 @@ class DashboardController extends Controller
             ];
         }
 
-        // 4. Biểu đồ 4 tuần gần nhất (Điểm danh theo tuần)
+        // 5. Biểu đồ 4 tuần gần nhất (Điểm danh theo tuần)
         $chartWeeks = [];
         for ($w = 3; $w >= 0; $w--) {
             $startWeek = Carbon::now()->subWeeks($w)->startOfWeek();
@@ -66,8 +74,8 @@ class DashboardController extends Controller
             ];
         }
 
-        // 5. Danh sách điểm danh mới nhất hôm nay (Top 10)
-        $recentAttendances = Attendance::with('student', 'workshop')
+        // 6. Danh sách điểm danh mới nhất hôm nay (Top 10)
+        $recentAttendances = Attendance::with(['student', 'workshop', 'practiceSession'])
             ->whereDate('check_in', $today)
             ->orderBy('updated_at', 'desc')
             ->limit(10)
@@ -82,6 +90,7 @@ class DashboardController extends Controller
                 'unattended_today' => $unattendedCount,
                 'check_in_count' => $checkInCount,
                 'check_out_count' => $checkOutCount,
+                'today_sessions' => $todaySessions,
                 'chart_days' => $chartDays,
                 'chart_weeks' => $chartWeeks,
                 'recent_attendances' => $recentAttendances,

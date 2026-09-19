@@ -12,6 +12,7 @@ class Attendance extends Model
     protected $fillable = [
         'student_id',
         'workshop_id',
+        'practice_session_id',
         'check_in',
         'check_out',
         'status'
@@ -30,5 +31,10 @@ class Attendance extends Model
     public function workshop()
     {
         return $this->belongsTo(Workshop::class);
+    }
+
+    public function practiceSession()
+    {
+        return $this->belongsTo(PracticeSession::class);
     }
 }

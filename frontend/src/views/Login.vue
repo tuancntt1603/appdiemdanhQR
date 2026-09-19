@@ -41,15 +41,23 @@
       </form>
 
       <div class="demo-box">
-        <div class="demo-title">🔑 Tài khoản Demo có sẵn:</div>
-        <div>Email: <b>admin@example.com</b></div>
-        <div>Mật khẩu: <b>password</b></div>
-        <div class="quick-fill" @click="fillDemo">Bấm vào đây để điền nhanh</div>
+        <div class="demo-title">🔑 Chọn nhanh tài khoản Demo theo vai trò:</div>
+        <div class="demo-grid-buttons">
+          <button type="button" @click="fillDemo('admin')" class="btn-demo-pill">
+            🛡️ <b>Admin:</b> admin@example.com
+          </button>
+          <button type="button" @click="fillDemo('canbo')" class="btn-demo-pill">
+            👨‍🏫 <b>Giảng viên:</b> canbo@example.com
+          </button>
+          <button type="button" @click="fillDemo('sinhvien')" class="btn-demo-pill">
+            🎓 <b>Sinh viên:</b> sv001@example.com
+          </button>
+        </div>
       </div>
 
       <div class="student-portal-link">
         <router-link to="/student-qr">
-          📱 Dành cho Sinh viên: Xem mã QR cá nhân &rarr;
+          📱 Dành cho Sinh viên: Xem mã QR cá nhân 90s trực tiếp &rarr;
         </router-link>
       </div>
     </div>
@@ -67,9 +75,17 @@ const password = ref('password')
 const loading = ref(false)
 const errorMessage = ref('')
 
-const fillDemo = () => {
-  email.value = 'admin@example.com'
-  password.value = 'password'
+const fillDemo = (role) => {
+  if (role === 'admin') {
+    email.value = 'admin@example.com'
+    password.value = 'password'
+  } else if (role === 'canbo') {
+    email.value = 'canbo@example.com'
+    password.value = 'password'
+  } else if (role === 'sinhvien') {
+    email.value = 'sv001@example.com'
+    password.value = 'password'
+  }
 }
 
 const handleLogin = async () => {
@@ -82,10 +98,16 @@ const handleLogin = async () => {
     })
 
     if (res.data.success) {
+      const user = res.data.data.user
       localStorage.setItem('auth_token', res.data.data.token)
-      localStorage.setItem('user_name', res.data.data.user.name)
-      localStorage.setItem('user_role', res.data.data.user.role)
-      router.push('/dashboard')
+      localStorage.setItem('user_name', user.name)
+      localStorage.setItem('user_role', user.role)
+
+      if (user.role === 'sinh_vien') {
+        router.push('/student-qr')
+      } else {
+        router.push('/dashboard')
+      }
     } else {
       errorMessage.value = res.data.message || 'Đăng nhập không thành công'
     }
@@ -174,15 +196,31 @@ const handleLogin = async () => {
 .demo-title {
   font-weight: 600;
   color: var(--gray-800);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
-.quick-fill {
-  margin-top: 0.5rem;
-  color: var(--primary);
-  font-weight: 600;
+.demo-grid-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.btn-demo-pill {
+  background: white;
+  border: 1px solid var(--gray-300);
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  color: var(--gray-700);
   cursor: pointer;
-  text-decoration: underline;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.btn-demo-pill:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
 }
 
 .student-portal-link {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\PracticeSession;
 use App\Models\QrToken;
 use App\Models\Student;
 use App\Models\Workshop;
@@ -14,11 +15,21 @@ class AttendanceController extends Controller
 {
     /**
      * Danh sách lịch sử điểm danh với bộ lọc:
-     * theo ngày, theo tuần, theo tháng, theo sinh viên, theo lớp
+     * theo ngày, theo tuần, theo tháng, theo sinh viên, theo lớp, theo buổi thực hành
      */
     public function index(Request $request)
     {
-        $query = Attendance::with(['student', 'workshop']);
+        $query = Attendance::with(['student', 'workshop', 'practiceSession']);
+
+        // Bộ lọc theo buổi thực hành
+        if ($request->filled('practice_session_id')) {
+            $query->where('practice_session_id', $request->practice_session_id);
+        }
+
+        // Bộ lọc theo xưởng
+        if ($request->filled('workshop_id')) {
+            $query->where('workshop_id', $request->workshop_id);
+        }
 
         // Bộ lọc theo ngày cụ thể (YYYY-MM-DD)
         if ($request->filled('date')) {
@@ -82,7 +93,7 @@ class AttendanceController extends Controller
      */
     public function getStudentAttendance($id)
     {
-        $attendances = Attendance::with('workshop')
+        $attendances = Attendance::with(['workshop', 'practiceSession'])
             ->where('student_id', $id)
             ->orderBy('check_in', 'desc')
             ->get();
@@ -96,16 +107,23 @@ class AttendanceController extends Controller
 
     /**
      * Quét QR điểm danh (Xử lý thông minh: tự động vào hoặc ra)
-     * Quy trình:
-     * - Kiểm tra QR payload (JSON, student, token 90s)
-     * - Nếu chưa có bản ghi trong ngày => Check-in (Vào thành công)
-     * - Nếu đã có check-in nhưng chưa check-out => Check-out (Ra thành công)
-     * - Nếu đã có cả check-in và check-out => Báo hoàn thành điểm danh
+     * Ràng buộc:
+     * 1. Kiểm tra format JSON và tính hợp lệ của sinh viên
+     * 2. Kiểm tra token cá nhân và thời hạn 90 giây
+     * 3. Nếu gắn với Buổi thực hành:
+     *    - Kiểm tra sinh viên có thuộc đúng Lớp của buổi thực hành không
+     *    - Kiểm tra thời gian quét có nằm trong khung giờ của buổi học không (cho phép sớm 30p, muộn 45p)
+     *    - Tự động gán workshop_id từ buổi học nếu chưa có
+     * 4. Quét lần 1 trong buổi => Check-in (VÀO)
+     * 5. Quét lần 2 trong buổi => Check-out (RA)
+     * 6. Quét từ lần 3 trở đi => Thông báo đã hoàn thành
+     * 7. Chống quét trùng liên tục trong vòng 10 giây
      */
     public function scanQr(Request $request)
     {
         $rawQr = $request->input('qr_data');
         $workshopId = $request->input('workshop_id');
+        $practiceSessionId = $request->input('practice_session_id');
 
         if (! $rawQr) {
             return response()->json([
@@ -152,7 +170,55 @@ class AttendanceController extends Controller
             ], 400);
         }
 
-        // 5. Kiểm tra xưởng thực hành mặc định nếu chưa truyền
+        // 5. Kiểm tra Buổi thực hành (nếu được chọn)
+        $practiceSession = null;
+        if ($practiceSessionId) {
+            $practiceSession = PracticeSession::find($practiceSessionId);
+            if (! $practiceSession) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Buổi thực hành được chọn không tồn tại'
+                ], 404);
+            }
+
+            // Gắn workshop_id từ buổi học
+            if (! $workshopId && $practiceSession->workshop_id) {
+                $workshopId = $practiceSession->workshop_id;
+            }
+
+            // RÀNG BUỘC: Kiểm tra sinh viên có thuộc đúng lớp của buổi học không
+            if (trim(strtoupper($student->lop)) !== trim(strtoupper($practiceSession->lop))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Sinh viên thuộc lớp {$student->lop}, không thuộc lớp {$practiceSession->lop} của buổi thực hành này!"
+                ], 400);
+            }
+
+            // RÀNG BUỘC: Kiểm tra thời gian điểm danh có nằm trong khung giờ buổi học hay không
+            // Cho phép điểm danh vào sớm tối đa 30 phút, và kết thúc trễ tối đa 45 phút
+            $now = Carbon::now();
+            $ngayHocStr = $practiceSession->ngay_hoc->toDateString();
+            $sessionStart = Carbon::parse($ngayHocStr . ' ' . $practiceSession->gio_bat_dau)->subMinutes(30);
+            $sessionEnd = Carbon::parse($ngayHocStr . ' ' . $practiceSession->gio_ket_thuc)->addMinutes(45);
+
+            if ($now->lt($sessionStart)) {
+                $earliest = $sessionStart->format('H:i d/m/Y');
+                return response()->json([
+                    'success' => false,
+                    'message' => "Chưa đến giờ điểm danh cho buổi thực hành '{$practiceSession->ten_buoi}'. Giờ mở sớm nhất: {$earliest}."
+                ], 400);
+            }
+
+            if ($now->gt($sessionEnd)) {
+                $latest = $sessionEnd->format('H:i d/m/Y');
+                return response()->json([
+                    'success' => false,
+                    'message' => "Buổi thực hành '{$practiceSession->ten_buoi}' đã kết thúc điểm danh lúc {$latest}!"
+                ], 400);
+            }
+        }
+
+        // Kiểm tra xưởng thực hành mặc định nếu chưa truyền
         if (! $workshopId) {
             $defaultWorkshop = Workshop::first();
             $workshopId = $defaultWorkshop ? $defaultWorkshop->id : null;
@@ -161,39 +227,62 @@ class AttendanceController extends Controller
         $today = Carbon::today();
         $now = Carbon::now();
 
-        // Tìm bản ghi điểm danh hôm nay của sinh viên
-        $attendance = Attendance::where('student_id', $student->id)
-            ->whereDate('check_in', $today)
-            ->first();
+        // Tìm bản ghi điểm danh tương ứng:
+        // Nếu có practice_session_id thì tìm theo sinh viên + practice_session_id
+        // Nếu không có thì tìm theo sinh viên + ngày hôm nay
+        $attendanceQuery = Attendance::where('student_id', $student->id);
+        if ($practiceSession) {
+            $attendanceQuery->where('practice_session_id', $practiceSession->id);
+        } else {
+            $attendanceQuery->whereDate('check_in', $today);
+        }
 
-        // Tình huống 1: Chưa có bản ghi hôm nay => Ghi nhận Giờ Vào
+        $attendance = $attendanceQuery->first();
+
+        // Xác định trạng thái đúng giờ hay muộn (nếu có buổi thực hành)
+        $status = 'dung_gio';
+        if ($practiceSession) {
+            $startTime = Carbon::parse($practiceSession->ngay_hoc->toDateString() . ' ' . $practiceSession->gio_bat_dau);
+            // Nếu check-in sau giờ bắt đầu hơn 15 phút thì tính là muộn
+            if ($now->gt($startTime->copy()->addMinutes(15))) {
+                $status = 'muon';
+            }
+        }
+
+        // Tình huống 1: Chưa có bản ghi => Ghi nhận Giờ Vào (Check-In)
         if (! $attendance) {
             $newAttendance = Attendance::create([
                 'student_id' => $student->id,
                 'workshop_id' => $workshopId,
+                'practice_session_id' => $practiceSession ? $practiceSession->id : null,
                 'check_in' => $now,
                 'check_out' => null,
-                'status' => 'dung_gio',
+                'status' => $status,
             ]);
 
+            $newAttendance->load(['student', 'workshop', 'practiceSession']);
+
+            $statusText = $status === 'muon' ? ' (ĐI MUỘN)' : '';
             return response()->json([
                 'success' => true,
                 'type' => 'check_in',
-                'message' => 'Điểm danh vào thành công',
+                'message' => 'Điểm danh vào xưởng thành công' . $statusText,
                 'data' => [
                     'student' => $student,
                     'attendance' => $newAttendance,
                     'action' => 'VÀO',
                     'time' => $now->format('H:i:s d/m/Y'),
-                    'status' => 'dung_gio'
+                    'status' => $status,
+                    'session_name' => $practiceSession ? $practiceSession->ten_buoi : 'Buổi thực hành chung',
                 ]
             ]);
         }
 
-        // Tình huống 2: Đã check_in nhưng chưa check_out => Ghi nhận Giờ Ra
+        // Tình huống 2: Đã check_in nhưng chưa check_out => Ghi nhận Giờ Ra (Check-Out)
         if ($attendance->check_in && ! $attendance->check_out) {
             // Chống quét trùng lập tức trong vòng 10 giây
-            if ($now->diffInSeconds($attendance->check_in) < 10) {
+            $checkInCarbon = Carbon::parse($attendance->check_in);
+            if (abs($now->diffInSeconds($checkInCarbon, false)) < 10) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Bạn vừa điểm danh vào cách đây vài giây. Vui lòng chờ trước khi điểm danh ra!'
@@ -205,16 +294,19 @@ class AttendanceController extends Controller
                 'status' => 'hoan_thanh'
             ]);
 
+            $attendance->load(['student', 'workshop', 'practiceSession']);
+
             return response()->json([
                 'success' => true,
                 'type' => 'check_out',
-                'message' => 'Điểm danh ra thành công',
+                'message' => 'Điểm danh ra xưởng thành công',
                 'data' => [
                     'student' => $student,
                     'attendance' => $attendance,
                     'action' => 'RA',
                     'time' => $now->format('H:i:s d/m/Y'),
-                    'status' => 'hoan_thanh'
+                    'status' => 'hoan_thanh',
+                    'session_name' => $practiceSession ? $practiceSession->ten_buoi : 'Buổi thực hành chung',
                 ]
             ]);
         }
@@ -223,12 +315,12 @@ class AttendanceController extends Controller
         return response()->json([
             'success' => false,
             'type' => 'completed',
-            'message' => 'Hôm nay sinh viên đã hoàn thành điểm danh',
+            'message' => 'Sinh viên đã hoàn thành điểm danh cả giờ vào và giờ ra cho buổi này!',
             'data' => [
                 'student' => $student,
                 'attendance' => $attendance,
-                'check_in' => $attendance->check_in->format('H:i:s d/m/Y'),
-                'check_out' => $attendance->check_out->format('H:i:s d/m/Y'),
+                'check_in' => $attendance->check_in ? $attendance->check_in->format('H:i:s d/m/Y') : '--',
+                'check_out' => $attendance->check_out ? $attendance->check_out->format('H:i:s d/m/Y') : '--',
             ]
         ], 200);
     }

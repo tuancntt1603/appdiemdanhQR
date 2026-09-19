@@ -9,12 +9,14 @@ import StudentQr from '../views/StudentQr.vue'
 import AttendanceHistory from '../views/AttendanceHistory.vue'
 import Reports from '../views/Reports.vue'
 import WorkshopManagement from '../views/WorkshopManagement.vue'
+import PracticeSessionManagement from '../views/PracticeSessionManagement.vue'
 
 const routes = [
   { path: '/login', name: 'Login', component: Login, meta: { public: true } },
   { path: '/', redirect: '/dashboard' },
   { path: '/dashboard', name: 'Dashboard', component: Dashboard },
   { path: '/scan', name: 'QrScanner', component: QrScanner },
+  { path: '/practice-sessions', name: 'PracticeSessionManagement', component: PracticeSessionManagement },
   { path: '/students', name: 'StudentManagement', component: StudentManagement },
   { path: '/students/:id', name: 'StudentDetail', component: StudentDetail },
   { path: '/student-qr', name: 'StudentQr', component: StudentQr, meta: { public: true } },

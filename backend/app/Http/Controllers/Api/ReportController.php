@@ -24,7 +24,12 @@ class ReportController extends Controller
         $startDate = Carbon::now()->subWeeks($weekOffset)->startOfWeek();
         $endDate = Carbon::now()->subWeeks($weekOffset)->endOfWeek();
 
-        $data = $this->calculateDiligenceReport($startDate, $endDate, $request->input('lop'));
+        $data = $this->calculateDiligenceReport(
+            $startDate,
+            $endDate,
+            $request->input('lop'),
+            $request->input('practice_session_id')
+        );
 
         return response()->json([
             'success' => true,
@@ -48,7 +53,12 @@ class ReportController extends Controller
         $startDate = Carbon::now()->subMonths($months)->startOfMonth();
         $endDate = Carbon::now()->endOfMonth();
 
-        $data = $this->calculateDiligenceReport($startDate, $endDate, $request->input('lop'));
+        $data = $this->calculateDiligenceReport(
+            $startDate,
+            $endDate,
+            $request->input('lop'),
+            $request->input('practice_session_id')
+        );
 
         return response()->json([
             'success' => true,
@@ -68,11 +78,14 @@ class ReportController extends Controller
      * Số buổi vắng = Tổng số buổi - Số buổi có mặt
      * Tỷ lệ = (có mặt / tổng số) * 100
      */
-    private function calculateDiligenceReport($startDate, $endDate, $lop = null)
+    private function calculateDiligenceReport($startDate, $endDate, $lop = null, $practiceSessionId = null)
     {
         // Lấy tất cả ngày xưởng có điểm danh trong khoảng thời gian
-        $activeDays = Attendance::whereBetween('check_in', [$startDate, $endDate])
-            ->selectRaw('DATE(check_in) as date')
+        $activeDaysQuery = Attendance::whereBetween('check_in', [$startDate, $endDate]);
+        if ($practiceSessionId) {
+            $activeDaysQuery->where('practice_session_id', $practiceSessionId);
+        }
+        $activeDays = $activeDaysQuery->selectRaw('DATE(check_in) as date')
             ->distinct()
             ->pluck('date');
 
@@ -87,9 +100,14 @@ class ReportController extends Controller
         $report = [];
         foreach ($students as $student) {
             // Đếm số ngày sinh viên có điểm danh
-            $presentDays = Attendance::where('student_id', $student->id)
-                ->whereBetween('check_in', [$startDate, $endDate])
-                ->selectRaw('DATE(check_in) as date')
+            $presentDaysQuery = Attendance::where('student_id', $student->id)
+                ->whereBetween('check_in', [$startDate, $endDate]);
+
+            if ($practiceSessionId) {
+                $presentDaysQuery->where('practice_session_id', $practiceSessionId);
+            }
+
+            $presentDays = $presentDaysQuery->selectRaw('DATE(check_in) as date')
                 ->distinct()
                 ->pluck('date')
                 ->count();
@@ -121,9 +139,10 @@ class ReportController extends Controller
         $startDate = $request->input('start_date') ? Carbon::parse($request->input('start_date'))->startOfDay() : Carbon::now()->subDays(30)->startOfDay();
         $endDate = $request->input('end_date') ? Carbon::parse($request->input('end_date'))->endOfDay() : Carbon::now()->endOfDay();
         $lop = $request->input('lop');
+        $practiceSessionId = $request->input('practice_session_id');
 
         // Lấy danh sách điểm danh chi tiết
-        $query = Attendance::with(['student', 'workshop'])
+        $query = Attendance::with(['student', 'workshop', 'practiceSession'])
             ->whereBetween('check_in', [$startDate, $endDate]);
 
         if ($lop) {
@@ -132,11 +151,15 @@ class ReportController extends Controller
             });
         }
 
+        if ($practiceSessionId) {
+            $query->where('practice_session_id', $practiceSessionId);
+        }
+
         $attendances = $query->orderBy('check_in', 'asc')->get();
 
         // Tính tỷ lệ chuyên cần cho từng sinh viên
         $diligenceMap = [];
-        $diligenceList = $this->calculateDiligenceReport($startDate, $endDate, $lop);
+        $diligenceList = $this->calculateDiligenceReport($startDate, $endDate, $lop, $practiceSessionId);
         foreach ($diligenceList as $item) {
             $diligenceMap[$item['student_id']] = $item['ty_le'];
         }
@@ -148,12 +171,12 @@ class ReportController extends Controller
 
         // Thiết lập Tiêu đề báo cáo
         $sheet->setCellValue('A1', 'BÁO CÁO ĐIỂM DANH SINH VIÊN TẠI XƯỞNG THỰC HÀNH');
-        $sheet->mergeCells('A1:I1');
+        $sheet->mergeCells('A1:K1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('1E3A8A'));
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         $sheet->setCellValue('A2', 'Thời gian: ' . $startDate->format('d/m/Y') . ' - ' . $endDate->format('d/m/Y'));
-        $sheet->mergeCells('A2:I2');
+        $sheet->mergeCells('A2:K2');
         $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         // Header bảng
@@ -162,11 +185,13 @@ class ReportController extends Controller
             'B4' => 'Mã sinh viên',
             'C4' => 'Họ và tên',
             'D4' => 'Lớp',
-            'E4' => 'Ngày',
-            'F4' => 'Giờ vào',
-            'G4' => 'Giờ ra',
-            'H4' => 'Trạng thái',
-            'I4' => 'Tỷ lệ chuyên cần'
+            'E4' => 'Xưởng thực hành',
+            'F4' => 'Buổi thực hành',
+            'G4' => 'Ngày',
+            'H4' => 'Giờ vào',
+            'I4' => 'Giờ ra',
+            'J4' => 'Trạng thái',
+            'K4' => 'Tỷ lệ chuyên cần'
         ];
 
         foreach ($headers as $col => $title) {
@@ -191,7 +216,7 @@ class ReportController extends Controller
                 ]
             ]
         ];
-        $sheet->getStyle('A4:I4')->applyFromArray($headerStyle);
+        $sheet->getStyle('A4:K4')->applyFromArray($headerStyle);
         $sheet->getRowDimension(4)->setRowHeight(28);
 
         // Đổ dữ liệu
@@ -200,37 +225,41 @@ class ReportController extends Controller
         foreach ($attendances as $att) {
             $checkIn = $att->check_in ? Carbon::parse($att->check_in) : null;
             $checkOut = $att->check_out ? Carbon::parse($att->check_out) : null;
-            $statusText = $att->status === 'hoan_thanh' ? 'Hoàn thành' : ($att->status === 'dung_gio' ? 'Đã vào xưởng' : 'Muộn');
+            $statusText = $att->status === 'hoan_thanh' ? 'Hoàn thành' : ($att->status === 'muon' ? 'Đi muộn' : 'Đã vào xưởng');
             $rate = isset($diligenceMap[$att->student_id]) ? $diligenceMap[$att->student_id] . '%' : 'N/A';
+            $workshopName = $att->workshop ? $att->workshop->ten_xuong : 'Xưởng chung';
+            $sessionName = $att->practiceSession ? $att->practiceSession->ten_buoi : 'Chung';
 
             $sheet->setCellValue("A{$row}", $stt++);
             $sheet->setCellValue("B{$row}", $att->student->ma_sinh_vien ?? '');
             $sheet->setCellValue("C{$row}", $att->student->ho_ten ?? '');
             $sheet->setCellValue("D{$row}", $att->student->lop ?? '');
-            $sheet->setCellValue("E{$row}", $checkIn ? $checkIn->format('d/m/Y') : '');
-            $sheet->setCellValue("F{$row}", $checkIn ? $checkIn->format('H:i:s') : '');
-            $sheet->setCellValue("G{$row}", $checkOut ? $checkOut->format('H:i:s') : '--:--:--');
-            $sheet->setCellValue("H{$row}", $statusText);
-            $sheet->setCellValue("I{$row}", $rate);
+            $sheet->setCellValue("E{$row}", $workshopName);
+            $sheet->setCellValue("F{$row}", $sessionName);
+            $sheet->setCellValue("G{$row}", $checkIn ? $checkIn->format('d/m/Y') : '');
+            $sheet->setCellValue("H{$row}", $checkIn ? $checkIn->format('H:i:s') : '');
+            $sheet->setCellValue("I{$row}", $checkOut ? $checkOut->format('H:i:s') : '--:--:--');
+            $sheet->setCellValue("J{$row}", $statusText);
+            $sheet->setCellValue("K{$row}", $rate);
 
             // Căn lề
             $sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("B{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("D{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("E{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("F{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("G{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("H{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("I{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("J{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("K{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
             // Kẻ viền bảng
-            $sheet->getStyle("A{$row}:I{$row}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('E5E7EB');
+            $sheet->getStyle("A{$row}:K{$row}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('E5E7EB');
 
             $row++;
         }
 
         // Tự căn chỉnh kích thước cột
-        foreach (range('A', 'I') as $col) {
+        foreach (range('A', 'K') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 

@@ -13,41 +13,62 @@
       </div>
 
       <nav class="sidebar-nav">
-        <router-link to="/dashboard" class="nav-item" active-class="active">
-          <span class="nav-icon">📊</span>
-          <span>Bảng điều khiển</span>
-        </router-link>
+        <!-- Menu cho Admin & Cán bộ/Giảng viên -->
+        <template v-if="userRole !== 'sinh_vien'">
+          <router-link to="/dashboard" class="nav-item" active-class="active">
+            <span class="nav-icon">📊</span>
+            <span>Bảng điều khiển</span>
+          </router-link>
 
-        <router-link to="/scan" class="nav-item scan-highlight" active-class="active">
-          <span class="nav-icon">📷</span>
-          <span>Quét QR Điểm danh</span>
-          <span class="pulse-dot"></span>
-        </router-link>
+          <router-link to="/scan" class="nav-item scan-highlight" active-class="active">
+            <span class="nav-icon">📷</span>
+            <span>Quét QR Điểm danh</span>
+            <span class="pulse-dot"></span>
+          </router-link>
 
-        <router-link to="/students" class="nav-item" active-class="active">
-          <span class="nav-icon">🎓</span>
-          <span>Quản lý sinh viên</span>
-        </router-link>
+          <router-link to="/practice-sessions" class="nav-item" active-class="active">
+            <span class="nav-icon">📅</span>
+            <span>Buổi thực hành & Lịch</span>
+          </router-link>
 
-        <router-link to="/student-qr" class="nav-item" active-class="active">
-          <span class="nav-icon">📱</span>
-          <span>Xem QR Cá nhân</span>
-        </router-link>
+          <router-link to="/students" class="nav-item" active-class="active">
+            <span class="nav-icon">🎓</span>
+            <span>Quản lý sinh viên</span>
+          </router-link>
 
-        <router-link to="/attendance" class="nav-item" active-class="active">
-          <span class="nav-icon">🕒</span>
-          <span>Lịch sử điểm danh</span>
-        </router-link>
+          <router-link to="/student-qr" class="nav-item" active-class="active">
+            <span class="nav-icon">📱</span>
+            <span>Xem QR Cá nhân (90s)</span>
+          </router-link>
 
-        <router-link to="/reports" class="nav-item" active-class="active">
-          <span class="nav-icon">📈</span>
-          <span>Chuyên cần & Báo cáo</span>
-        </router-link>
+          <router-link to="/attendance" class="nav-item" active-class="active">
+            <span class="nav-icon">🕒</span>
+            <span>Lịch sử điểm danh</span>
+          </router-link>
 
-        <router-link to="/workshops" class="nav-item" active-class="active">
-          <span class="nav-icon">🏢</span>
-          <span>Quản lý xưởng</span>
-        </router-link>
+          <router-link to="/reports" class="nav-item" active-class="active">
+            <span class="nav-icon">📈</span>
+            <span>Chuyên cần & Báo cáo</span>
+          </router-link>
+
+          <router-link to="/workshops" class="nav-item" active-class="active">
+            <span class="nav-icon">🏢</span>
+            <span>Quản lý xưởng</span>
+          </router-link>
+        </template>
+
+        <!-- Menu dành riêng cho Sinh viên khi đăng nhập -->
+        <template v-else>
+          <router-link to="/student-qr" class="nav-item" active-class="active">
+            <span class="nav-icon">📱</span>
+            <span>Mã QR Cá Nhân (90s)</span>
+          </router-link>
+
+          <router-link to="/attendance" class="nav-item" active-class="active">
+            <span class="nav-icon">🕒</span>
+            <span>Lịch sử điểm danh của tôi</span>
+          </router-link>
+        </template>
       </nav>
 
       <div class="sidebar-footer">
@@ -55,7 +76,7 @@
           <div class="avatar">{{ userInitial }}</div>
           <div class="user-meta">
             <span class="user-name">{{ userName }}</span>
-            <span class="user-role">{{ userRole === 'admin' ? 'Quản trị viên' : 'Cán bộ xưởng' }}</span>
+            <span class="user-role">{{ getRoleName(userRole) }}</span>
           </div>
         </div>
         <button @click="logout" class="btn-logout" title="Đăng xuất">
@@ -106,6 +127,7 @@ const currentRouteName = computed(() => {
   const map = {
     'Dashboard': 'Bảng điều khiển thống kê',
     'QrScanner': 'Quét mã QR Điểm danh tại cửa xưởng',
+    'PracticeSessionManagement': 'Quản lý Buổi thực hành & Lịch điểm danh',
     'StudentManagement': 'Quản lý danh sách sinh viên',
     'StudentDetail': 'Thông tin chi tiết sinh viên',
     'StudentQr': 'Mã QR cá nhân 90 giây',
@@ -115,6 +137,13 @@ const currentRouteName = computed(() => {
   }
   return map[route.name] || 'Hệ thống Quản lý'
 })
+
+const getRoleName = (role) => {
+  if (role === 'admin') return 'Quản trị viên'
+  if (role === 'can_bo') return 'Giảng viên / Cán bộ'
+  if (role === 'sinh_vien') return 'Sinh viên'
+  return 'Người dùng'
+}
 
 const currentTime = ref('')
 let timer = null

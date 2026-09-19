@@ -9,8 +9,8 @@
         </div>
 
         <!-- Student Selector / Quick Login -->
-        <div class="selector-card">
-          <label class="form-label">Chọn sinh viên hoặc nhập mã sinh viên:</label>
+        <div v-if="userRole !== 'sinh_vien'" class="selector-card">
+          <label class="form-label">Chọn sinh viên để xem mã QR:</label>
           <div class="select-group">
             <select v-model="selectedStudentId" @change="onStudentChange" class="form-control">
               <option v-for="st in students" :key="st.id" :value="st.id">
@@ -99,11 +99,26 @@ const remainingSeconds = ref(90)
 const loading = ref(false)
 let countdownTimer = null
 
+const userRole = ref(localStorage.getItem('user_role') || '')
+const userName = ref(localStorage.getItem('user_name') || '')
+
 const fetchStudents = async () => {
   try {
     const res = await api.get('/students')
     if (res.data.success && res.data.data.length > 0) {
       students.value = res.data.data
+
+      // Nếu người dùng đăng nhập là sinh viên (name là Mã SV hoặc Email)
+      if (userRole.value === 'sinh_vien') {
+        const found = students.value.find(s => s.ma_sinh_vien === userName.value || s.email === userName.value)
+        if (found) {
+          selectedStudentId.value = found.id
+          currentStudent.value = found
+          await generateQrCode()
+          return
+        }
+      }
+
       selectedStudentId.value = students.value[0].id
       currentStudent.value = students.value[0]
       await generateQrCode()

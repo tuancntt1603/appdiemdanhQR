@@ -16,21 +16,37 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'email' => 'required|string',
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $input = trim($request->email);
+
+        // Tìm kiếm theo email hoặc theo name/mã sinh viên trong bảng users
+        $user = User::where('email', $input)->first();
+
+        // Nếu không tìm thấy theo email, thử tìm kiếm xem có phải sinh viên đăng nhập bằng mã SV
+        if (! $user) {
+            $user = User::where('name', $input)->first();
+        }
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Email hoặc mật khẩu không chính xác'
+                'message' => 'Tài khoản hoặc mật khẩu không chính xác'
             ], 401);
         }
 
         // Tạo Personal Access Token
         $token = $user->createToken('auth_token')->plainTextToken;
+
+        // Nếu là sinh viên, lấy kèm thông tin hồ sơ sinh viên
+        $studentInfo = null;
+        if ($user->role === 'sinh_vien') {
+            $studentInfo = \App\Models\Student::where('email', $user->email)
+                ->orWhere('ma_sinh_vien', $user->name)
+                ->first();
+        }
 
         return response()->json([
             'success' => true,
@@ -42,6 +58,7 @@ class AuthController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'role' => $user->role,
+                    'student' => $studentInfo,
                 ]
             ]
         ]);

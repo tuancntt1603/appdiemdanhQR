@@ -44,6 +44,16 @@
         </div>
 
         <div class="filter-item">
+          <label class="form-label">Buổi thực hành:</label>
+          <select v-model="selectedSessionId" @change="fetchReport" class="form-control">
+            <option value="">-- Tất cả các buổi --</option>
+            <option v-for="ps in practiceSessions" :key="ps.id" :value="ps.id">
+              {{ ps.ten_buoi }} ({{ ps.lop }})
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-item">
           <label class="form-label">Lọc theo Lớp:</label>
           <input
             v-model="filterLop"
@@ -122,10 +132,23 @@ import api from '../services/api'
 const activeTab = ref('weekly')
 const weekOffset = ref(0)
 const filterLop = ref('')
+const selectedSessionId = ref('')
+const practiceSessions = ref([])
 const reportItems = ref([])
 const reportMeta = ref({})
 const loading = ref(false)
 const exporting = ref(false)
+
+const fetchSessions = async () => {
+  try {
+    const res = await api.get('/practice-sessions')
+    if (res.data.success) {
+      practiceSessions.value = res.data.data
+    }
+  } catch (err) {
+    console.error('Lỗi khi tải buổi thực hành:', err)
+  }
+}
 
 const fetchReport = async () => {
   loading.value = true
@@ -133,7 +156,8 @@ const fetchReport = async () => {
     const endpoint = activeTab.value === 'weekly' ? '/reports/weekly' : '/reports/semester'
     const params = {
       week: weekOffset.value,
-      lop: filterLop.value || undefined
+      lop: filterLop.value || undefined,
+      practice_session_id: selectedSessionId.value || undefined,
     }
 
     const res = await api.get(endpoint, { params })
@@ -163,7 +187,8 @@ const exportExcel = async () => {
   try {
     const response = await api.get('/reports/export', {
       params: {
-        lop: filterLop.value || undefined
+        lop: filterLop.value || undefined,
+        practice_session_id: selectedSessionId.value || undefined,
       },
       responseType: 'blob'
     })
@@ -186,6 +211,7 @@ const exportExcel = async () => {
 }
 
 onMounted(() => {
+  fetchSessions()
   fetchReport()
 })
 </script>

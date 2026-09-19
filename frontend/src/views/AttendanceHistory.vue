@@ -16,6 +16,16 @@
         </div>
 
         <div class="form-group mb-0">
+          <label class="form-label">Buổi thực hành:</label>
+          <select v-model="filters.practice_session_id" @change="fetchHistory" class="form-control">
+            <option value="">-- Tất cả các buổi --</option>
+            <option v-for="ps in practiceSessions" :key="ps.id" :value="ps.id">
+              {{ ps.ten_buoi }} ({{ ps.lop }})
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group mb-0">
           <label class="form-label">Theo lớp:</label>
           <input
             v-model="filters.lop"
@@ -53,6 +63,7 @@
               <th>Mã SV</th>
               <th>Họ và Tên</th>
               <th>Lớp</th>
+              <th>Buổi Thực Hành</th>
               <th>Xưởng</th>
               <th>Ngày</th>
               <th>Giờ Vào</th>
@@ -62,16 +73,19 @@
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="9" class="text-center py-4">Đang tải lịch sử điểm danh...</td>
+              <td colspan="10" class="text-center py-4">Đang tải lịch sử điểm danh...</td>
             </tr>
             <tr v-else-if="attendances.length === 0">
-              <td colspan="9" class="text-center py-4">Không có bản ghi điểm danh nào phù hợp</td>
+              <td colspan="10" class="text-center py-4">Không có bản ghi điểm danh nào phù hợp</td>
             </tr>
             <tr v-for="(att, idx) in attendances" :key="att.id">
               <td>{{ idx + 1 }}</td>
               <td><b>{{ att.student?.ma_sinh_vien }}</b></td>
               <td>{{ att.student?.ho_ten }}</td>
               <td>{{ att.student?.lop }}</td>
+              <td>
+                <span class="badge badge-info">{{ att.practice_session ? att.practice_session.ten_buoi : 'Chung' }}</span>
+              </td>
               <td>{{ att.workshop?.ten_xuong || 'Xưởng chung' }}</td>
               <td>{{ formatDate(att.check_in) }}</td>
               <td><span class="time-tag in">{{ formatTime(att.check_in) }}</span></td>
@@ -97,12 +111,25 @@ import { ref, onMounted } from 'vue'
 import api from '../services/api'
 
 const attendances = ref([])
+const practiceSessions = ref([])
 const loading = ref(false)
 const filters = ref({
   date: '',
   lop: '',
-  ma_sinh_vien: ''
+  ma_sinh_vien: '',
+  practice_session_id: ''
 })
+
+const fetchSessions = async () => {
+  try {
+    const res = await api.get('/practice-sessions')
+    if (res.data.success) {
+      practiceSessions.value = res.data.data
+    }
+  } catch (err) {
+    console.error('Lỗi lấy buổi thực hành:', err)
+  }
+}
 
 const fetchHistory = async () => {
   loading.value = true
@@ -111,7 +138,8 @@ const fetchHistory = async () => {
       params: {
         date: filters.value.date || undefined,
         lop: filters.value.lop || undefined,
-        ma_sinh_vien: filters.value.ma_sinh_vien || undefined
+        ma_sinh_vien: filters.value.ma_sinh_vien || undefined,
+        practice_session_id: filters.value.practice_session_id || undefined
       }
     })
     if (res.data.success) {
@@ -125,7 +153,7 @@ const fetchHistory = async () => {
 }
 
 const resetFilters = () => {
-  filters.value = { date: '', lop: '', ma_sinh_vien: '' }
+  filters.value = { date: '', lop: '', ma_sinh_vien: '', practice_session_id: '' }
   fetchHistory()
 }
 
@@ -154,6 +182,7 @@ const getStatusText = (status) => {
 }
 
 onMounted(() => {
+  fetchSessions()
   fetchHistory()
 })
 </script>

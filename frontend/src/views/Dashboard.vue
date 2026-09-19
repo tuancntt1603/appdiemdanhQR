@@ -94,6 +94,40 @@
       </div>
     </div>
 
+    <!-- Today Practice Sessions Section -->
+    <div v-if="stats.today_sessions && stats.today_sessions.length > 0" class="card mb-4">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">📅 Lịch Buổi Thực Hành Hôm Nay</h3>
+          <p class="card-subtitle">Các buổi thực hành xưởng đang diễn ra hoặc sắp diễn ra</p>
+        </div>
+        <router-link to="/practice-sessions" class="btn btn-secondary btn-sm">
+          Quản lý lịch &rarr;
+        </router-link>
+      </div>
+
+      <div class="today-sessions-grid">
+        <div v-for="sess in stats.today_sessions" :key="sess.id" class="today-session-item">
+          <div class="session-top">
+            <span class="session-class-badge">{{ sess.lop }}</span>
+            <span :class="getStatusBadgeClass(sess.trang_thai)">{{ getStatusText(sess.trang_thai) }}</span>
+          </div>
+          <h4 class="session-name">{{ sess.ten_buoi }}</h4>
+          <div class="session-sub">Môn: {{ sess.mon_hoc || 'Thực hành xưởng' }}</div>
+          <div class="session-meta">
+            <span>🏢 {{ sess.workshop?.ten_xuong }}</span>
+            <span>⏰ {{ formatTimeOnly(sess.gio_bat_dau) }} - {{ formatTimeOnly(sess.gio_ket_thuc) }}</span>
+          </div>
+          <div class="session-footer">
+            <span class="attended-tag">👥 <b>{{ sess.attendances_count || 0 }}</b> đã điểm danh</span>
+            <router-link :to="{ path: '/scan', query: { session_id: sess.id } }" class="btn btn-primary btn-xs">
+              📷 Quét QR
+            </router-link>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Recent Attendances Table -->
     <div class="card table-card">
       <div class="card-header">
@@ -113,6 +147,7 @@
               <th>Mã SV</th>
               <th>Họ và tên</th>
               <th>Lớp</th>
+              <th>Buổi thực hành</th>
               <th>Xưởng</th>
               <th>Giờ vào</th>
               <th>Giờ ra</th>
@@ -121,12 +156,15 @@
           </thead>
           <tbody>
             <tr v-if="!stats.recent_attendances || stats.recent_attendances.length === 0">
-              <td colspan="7" class="text-center py-4">Chưa có sinh viên nào điểm danh hôm nay</td>
+              <td colspan="8" class="text-center py-4">Chưa có sinh viên nào điểm danh hôm nay</td>
             </tr>
             <tr v-for="att in stats.recent_attendances" :key="att.id">
               <td><b>{{ att.student?.ma_sinh_vien }}</b></td>
               <td>{{ att.student?.ho_ten }}</td>
               <td>{{ att.student?.lop }}</td>
+              <td>
+                <span class="badge badge-info">{{ att.practice_session ? att.practice_session.ten_buoi : 'Chung' }}</span>
+              </td>
               <td>{{ att.workshop?.ten_xuong || 'Xưởng chung' }}</td>
               <td><span class="time-tag in">{{ formatTime(att.check_in) }}</span></td>
               <td>
@@ -195,6 +233,11 @@ const getStatusText = (status) => {
   return 'Muộn'
 }
 
+const formatTimeOnly = (timeStr) => {
+  if (!timeStr) return '--:--'
+  return timeStr.slice(0, 5)
+}
+
 const fetchDashboard = async () => {
   try {
     const res = await api.get('/dashboard')
@@ -212,6 +255,70 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.today-sessions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.today-session-item {
+  background: #f8fafc;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.session-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.session-class-badge {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+}
+
+.session-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-top: 0.2rem;
+}
+
+.session-sub {
+  font-size: 0.78rem;
+  color: var(--gray-500);
+}
+
+.session-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--gray-600);
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--gray-200);
+}
+
+.session-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.attended-tag {
+  font-size: 0.8rem;
+  color: var(--gray-700);
+}
 .dashboard-page {
   display: flex;
   flex-direction: column;

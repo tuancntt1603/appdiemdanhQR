@@ -18,4 +18,9 @@ class Workshop extends Model
     {
         return $this->hasMany(Attendance::class);
     }
+
+    public function practiceSessions()
+    {
+        return $this->hasMany(PracticeSession::class);
+    }
 }

@@ -51,6 +51,8 @@
             <thead>
               <tr>
                 <th>Ngày</th>
+                <th>Buổi Thực Hành</th>
+                <th>Xưởng</th>
                 <th>Giờ vào</th>
                 <th>Giờ ra</th>
                 <th>Trạng thái</th>
@@ -58,14 +60,19 @@
             </thead>
             <tbody>
               <tr v-if="!student.attendances || student.attendances.length === 0">
-                <td colspan="4" class="text-center py-4">Chưa có dữ liệu điểm danh</td>
+                <td colspan="6" class="text-center py-4">Chưa có dữ liệu điểm danh</td>
               </tr>
               <tr v-for="att in student.attendances" :key="att.id">
                 <td>{{ formatDate(att.check_in) }}</td>
+                <td>
+                  <span class="badge badge-info">{{ att.practice_session ? att.practice_session.ten_buoi : 'Chung' }}</span>
+                </td>
+                <td>{{ att.workshop?.ten_xuong || 'Xưởng chung' }}</td>
                 <td>{{ formatTime(att.check_in) }}</td>
                 <td>{{ att.check_out ? formatTime(att.check_out) : '--:--' }}</td>
                 <td>
                   <span class="badge badge-success" v-if="att.status === 'hoan_thanh'">Hoàn thành</span>
+                  <span class="badge badge-warning" v-else-if="att.status === 'muon'">Đi muộn</span>
                   <span class="badge badge-info" v-else>Đang ở xưởng</span>
                 </td>
               </tr>

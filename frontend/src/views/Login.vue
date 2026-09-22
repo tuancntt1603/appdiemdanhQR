@@ -236,4 +236,32 @@ const handleLogin = async () => {
 .student-portal-link a:hover {
   text-decoration: underline;
 }
+
+@media (max-width: 480px) {
+  .login-wrapper {
+    padding: 1rem 0.75rem;
+    align-items: flex-start;
+    padding-top: 1.5rem;
+  }
+  .login-card {
+    padding: 1.5rem 1.15rem;
+    border-radius: var(--radius-md);
+  }
+  .login-header {
+    margin-bottom: 1.25rem;
+  }
+  .logo-box {
+    width: 48px;
+    height: 48px;
+    font-size: 1.6rem;
+    margin-bottom: 0.75rem;
+  }
+  .login-header h2 {
+    font-size: 1.15rem;
+  }
+  .btn-demo-pill {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+  }
+}
 </style>

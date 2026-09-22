@@ -262,6 +262,9 @@ class AttendanceController extends Controller
 
             $newAttendance->load(['student', 'workshop', 'practiceSession']);
 
+            // Tự động gửi email thông báo điểm danh vào
+            $this->sendAttendanceNotificationEmail($student, $newAttendance, 'VÀO', $now->format('H:i:s d/m/Y'), $practiceSession);
+
             $statusText = $status === 'muon' ? ' (ĐI MUỘN)' : '';
             return response()->json([
                 'success' => true,
@@ -295,6 +298,9 @@ class AttendanceController extends Controller
             ]);
 
             $attendance->load(['student', 'workshop', 'practiceSession']);
+
+            // Tự động gửi email thông báo điểm danh ra
+            $this->sendAttendanceNotificationEmail($student, $attendance, 'RA', $now->format('H:i:s d/m/Y'), $practiceSession);
 
             return response()->json([
                 'success' => true,
@@ -339,5 +345,39 @@ class AttendanceController extends Controller
     public function checkOut(Request $request)
     {
         return $this->scanQr($request);
+    }
+
+    /**
+     * Gửi email thông báo điểm danh tự động nếu có cấu hình bật
+     */
+    private function sendAttendanceNotificationEmail(Student $student, Attendance $attendance, string $action, string $timeStr, ?PracticeSession $practiceSession): void
+    {
+        if (empty($student->email)) {
+            return;
+        }
+
+        $autoEmail = \Illuminate\Support\Facades\Cache::get('setting_auto_email_on_scan', true);
+        if (! $autoEmail) {
+            return;
+        }
+
+        try {
+            $workshopName = $attendance->workshop?->ten_xuong ?? 'Xưởng thực hành';
+            $mailData = [
+                'student_name' => $student->ho_ten,
+                'ma_sinh_vien' => $student->ma_sinh_vien,
+                'lop' => $student->lop,
+                'action' => $action,
+                'time' => $timeStr,
+                'status' => $attendance->status,
+                'session_name' => $practiceSession ? $practiceSession->ten_buoi : 'Buổi thực hành chung',
+                'workshop_name' => $workshopName,
+            ];
+
+            \Illuminate\Support\Facades\Mail::to($student->email)
+                ->send(new \App\Mail\AttendanceNotificationMail($mailData));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning("Không thể gửi email thông báo điểm danh tới {$student->email}: " . $e->getMessage());
+        }
     }
 }

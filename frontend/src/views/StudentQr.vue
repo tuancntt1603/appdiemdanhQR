@@ -38,7 +38,7 @@
             <qrcode-vue
               v-if="qrDataString"
               :value="qrDataString"
-              :size="260"
+              :size="qrCodeSize"
               level="M"
             />
             <div v-if="remainingSeconds <= 0" class="expired-overlay">
@@ -82,14 +82,28 @@
           <p>Đang tải thông tin sinh viên...</p>
         </div>
       </div>
+
+      <!-- 📱 Khối cài đặt ứng dụng PWA -->
+      <InstallPWA />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import QrcodeVue from 'qrcode.vue'
 import api from '../services/api'
+import InstallPWA from '../components/InstallPWA.vue'
+
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 380)
+const onResize = () => {
+  windowWidth.value = window.innerWidth
+}
+const qrCodeSize = computed(() => {
+  if (windowWidth.value < 360) return 190
+  if (windowWidth.value < 440) return 215
+  return 250
+})
 
 const students = ref([])
 const selectedStudentId = ref(null)
@@ -165,10 +179,12 @@ const generateQrCode = async () => {
 
 onMounted(() => {
   fetchStudents()
+  window.addEventListener('resize', onResize)
 })
 
 onUnmounted(() => {
   if (countdownTimer) clearInterval(countdownTimer)
+  window.removeEventListener('resize', onResize)
 })
 </script>
 
@@ -322,5 +338,43 @@ onUnmounted(() => {
   color: var(--gray-500);
   margin-top: 0.75rem;
   line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .student-qr-page {
+    padding: 0.5rem 0.25rem 1.5rem;
+    min-height: auto;
+  }
+  .qr-box {
+    padding: 1.25rem 0.85rem;
+  }
+  .qr-header {
+    margin-bottom: 1rem;
+  }
+  .qr-header h2 {
+    font-size: 1.1rem;
+  }
+  .student-name {
+    font-size: 1.2rem;
+  }
+  .meta-row {
+    font-size: 0.78rem;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+  }
+  .qr-canvas-wrapper {
+    padding: 0.85rem;
+  }
+  .timer-section {
+    margin: 1rem 0 0.85rem;
+  }
+  .timer-tag {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.75rem;
+  }
+  .btn-lg {
+    padding: 0.75rem 1rem;
+    font-size: 0.92rem;
+  }
 }
 </style>

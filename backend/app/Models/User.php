@@ -20,9 +20,12 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'username',
         'email',
         'password',
         'role',
+        'student_id',
+        'is_active',
     ];
 
     /**
@@ -45,7 +48,13 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
+    }
+
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
     }
 
     public function practiceSessions()

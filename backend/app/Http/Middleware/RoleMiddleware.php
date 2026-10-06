@@ -25,11 +25,39 @@ class RoleMiddleware
             ], 401);
         }
 
-        if (! empty($roles) && ! in_array($user->role, $roles)) {
+        if (isset($user->is_active) && ! $user->is_active) {
             return response()->json([
                 'success' => false,
-                'message' => 'Bạn không có quyền truy cập vào chức năng này.'
+                'message' => 'Tài khoản của bạn đã bị vô hiệu hóa.'
             ], 403);
+        }
+
+        if (! empty($roles)) {
+            $parsedRoles = [];
+            foreach ($roles as $r) {
+                foreach (explode(',', $r) as $item) {
+                    $item = trim($item);
+                    if ($item !== '') {
+                        $parsedRoles[] = $item;
+                    }
+                }
+            }
+
+            $allowed = $parsedRoles;
+            // Cho phép can_bo tương đương lecturer
+            if (in_array('lecturer', $parsedRoles) && ! in_array('can_bo', $allowed)) {
+                $allowed[] = 'can_bo';
+            }
+            if (in_array('can_bo', $parsedRoles) && ! in_array('lecturer', $allowed)) {
+                $allowed[] = 'lecturer';
+            }
+
+            if (! in_array($user->role, $allowed)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền truy cập vào chức năng này.'
+                ], 403);
+            }
         }
 
         return $next($request);

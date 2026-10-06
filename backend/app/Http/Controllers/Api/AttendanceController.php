@@ -106,6 +106,39 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Lịch sử điểm danh của chính sinh viên đang đăng nhập (GET /api/my-attendance)
+     */
+    public function myAttendance(Request $request)
+    {
+        $user = $request->user();
+        if (! $user || ! $user->student_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy hồ sơ sinh viên tương ứng với tài khoản của bạn.'
+            ], 404);
+        }
+
+        $attendances = Attendance::with(['workshop', 'practiceSession'])
+            ->where('student_id', $user->student_id)
+            ->orderBy('check_in', 'desc')
+            ->get();
+
+        $today = Carbon::today();
+        $todayAttendance = Attendance::with(['workshop', 'practiceSession'])
+            ->where('student_id', $user->student_id)
+            ->whereDate('check_in', $today)
+            ->latest('check_in')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lấy lịch sử điểm danh của bạn thành công',
+            'today' => $todayAttendance,
+            'data' => $attendances
+        ]);
+    }
+
+    /**
      * Quét QR điểm danh (Xử lý thông minh: tự động vào hoặc ra)
      * Ràng buộc:
      * 1. Kiểm tra format JSON và tính hợp lệ của sinh viên

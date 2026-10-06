@@ -176,6 +176,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import api from './services/api'
 import InstallPWA from './components/InstallPWA.vue'
 
 const route = useRoute()
@@ -188,12 +189,15 @@ const closeMobileMenu = () => {
 }
 
 const isPublicRoute = computed(() => {
-  return route.path === '/login' || (route.path === '/student-qr' && !localStorage.getItem('auth_token'))
+  return route.path === '/login' ||
+         route.path === '/student' ||
+         userRole.value === 'student' ||
+         (route.path === '/student-qr' && !localStorage.getItem('auth_token'))
 })
 
-const userName = ref(localStorage.getItem('user_name') || 'Cán bộ Xưởng')
-const userRole = ref(localStorage.getItem('user_role') || 'can_bo')
-const userInitial = computed(() => (userName.value ? userName.value.charAt(0).toUpperCase() : 'A'))
+const userName = ref(localStorage.getItem('user_name') || 'Giảng viên')
+const userRole = ref(localStorage.getItem('user_role') || 'lecturer')
+const userInitial = computed(() => (userName.value ? userName.value.charAt(0).toUpperCase() : 'G'))
 
 const currentRouteName = computed(() => {
   const map = {
@@ -212,8 +216,8 @@ const currentRouteName = computed(() => {
 
 const getRoleName = (role) => {
   if (role === 'admin') return 'Quản trị viên'
-  if (role === 'can_bo') return 'Cán bộ'
-  if (role === 'sinh_vien') return 'Sinh viên'
+  if (role === 'lecturer' || role === 'can_bo') return 'Giảng viên'
+  if (role === 'student' || role === 'sinh_vien') return 'Sinh viên'
   return 'Người dùng'
 }
 
@@ -228,17 +232,29 @@ const updateTime = () => {
 onMounted(() => {
   updateTime()
   timer = setInterval(updateTime, 1000)
+  userName.value = localStorage.getItem('user_name') || 'Giảng viên'
+  userRole.value = localStorage.getItem('user_role') || 'lecturer'
 })
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
 })
 
-const logout = () => {
-  localStorage.removeItem('auth_token')
-  localStorage.removeItem('user_name')
-  localStorage.removeItem('user_role')
-  router.push('/login')
+const logout = async () => {
+  try {
+    await api.post('/logout')
+  } catch (e) {
+    // Ignore error on network or expired token
+  } finally {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user_name')
+    localStorage.removeItem('user_role')
+    localStorage.removeItem('username')
+    localStorage.removeItem('user_id')
+    localStorage.removeItem('student_id')
+    localStorage.removeItem('user_info')
+    router.push('/login')
+  }
 }
 </script>
 

@@ -17,16 +17,29 @@ class QrCodeController extends Controller
      */
     public function generate(Request $request)
     {
-        $request->validate([
-            'ma_sinh_vien' => 'required_without:student_id|string',
-            'student_id' => 'required_without:ma_sinh_vien|integer',
-        ]);
+        $user = $request->user();
 
-        $query = Student::query();
-        if ($request->filled('student_id')) {
-            $student = $query->find($request->student_id);
+        // Nếu sinh viên đang đăng nhập thì chỉ được tạo QR cho chính mình
+        if ($user && $user->role === 'student') {
+            if (! $user->student_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tài khoản chưa được liên kết với hồ sơ sinh viên'
+                ], 404);
+            }
+            $student = Student::find($user->student_id);
         } else {
-            $student = $query->where('ma_sinh_vien', $request->ma_sinh_vien)->first();
+            $request->validate([
+                'ma_sinh_vien' => 'required_without:student_id|string',
+                'student_id' => 'required_without:ma_sinh_vien|integer',
+            ]);
+
+            $query = Student::query();
+            if ($request->filled('student_id')) {
+                $student = $query->find($request->student_id);
+            } else {
+                $student = $query->where('ma_sinh_vien', $request->ma_sinh_vien)->first();
+            }
         }
 
         if (! $student) {
@@ -177,6 +190,64 @@ class QrCodeController extends Controller
             'data' => [
                 'student' => $student,
                 'qr_token_id' => $qrToken->id,
+            ]
+        ]);
+    }
+
+    /**
+     * Lấy / tạo mã QR cá nhân 90s cho sinh viên hiện tại (GET /api/my-qr)
+     */
+    public function myQr(Request $request)
+    {
+        $user = $request->user();
+        if (! $user || ! $user->student_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tài khoản không được liên kết với hồ sơ sinh viên'
+            ], 404);
+        }
+
+        $student = Student::find($user->student_id);
+        if (! $student) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy hồ sơ sinh viên'
+            ], 404);
+        }
+
+        // Tạo token ngẫu nhiên 40 ký tự có hiệu lực 90 giây
+        $tokenString = Str::random(40);
+        $expiresAt = Carbon::now()->addSeconds(90);
+
+        QrToken::create([
+            'student_id' => $student->id,
+            'token' => $tokenString,
+            'expires_at' => $expiresAt,
+        ]);
+
+        $qrPayload = [
+            'student_id' => $student->id,
+            'ma_sinh_vien' => $student->ma_sinh_vien,
+            'token' => $tokenString,
+            'expires_at' => $expiresAt->toIso8601String(),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tạo mã QR cá nhân thành công',
+            'data' => [
+                'student' => [
+                    'id' => $student->id,
+                    'ma_sinh_vien' => $student->ma_sinh_vien,
+                    'ho_ten' => $student->ho_ten,
+                    'lop' => $student->lop,
+                    'khoa' => $student->khoa,
+                ],
+                'token' => $tokenString,
+                'expires_at' => $expiresAt->toIso8601String(),
+                'expires_in_seconds' => 90,
+                'qr_data' => json_encode($qrPayload, JSON_UNESCAPED_UNICODE),
+                'payload' => $qrPayload,
             ]
         ]);
     }
